@@ -1,5 +1,20 @@
 import pandas as pd
 
+
+def combine_dynasty_date(row):
+    dynasty = str(row['Dynasty']).strip()
+    date = str(row['Date']).strip()
+
+    if dynasty and dynasty.lower() != 'nan':
+        if date and date.lower() != 'nan':
+            return f"{dynasty}, {date}"
+        else:
+            return dynasty
+    else:
+        return date if date.lower() != 'nan' else ''
+
+
+
 # 读取两个 CSV 文件
 df1 = pd.read_csv('datasets/asian_chinese.csv')
 df2 = pd.read_csv('datasets/asian_china.csv')
@@ -16,6 +31,11 @@ df_chinese = merged_df[merged_df['Department'] == 'Chinese Art']
 
 # 选择需要保留的列，这里假设你只保留 'title' 和 'Artist' 列
 df_filtered = df_chinese
+df_filtered['Museum'] = 'Asian Art Museum'
+
+
+# 应用拼接
+df_filtered['Dynasty'] = df_filtered.apply(combine_dynasty_date, axis=1)
 
 # 将处理后的数据保存到新文件
 df_filtered.to_csv('datasets/Combine_Asian.csv', index=False)
