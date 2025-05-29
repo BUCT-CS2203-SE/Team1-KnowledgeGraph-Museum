@@ -3,10 +3,10 @@ import pandas as pd
 import re
 
 # 加载 CSV
-df = pd.read_csv("../Process_ALL/datasets/Process_translate_ds.csv")
+df = pd.read_csv("../Process_ALL/datasets/Process_end2.csv")
 
 # Neo4j 连接
-driver = GraphDatabase.driver("bolt://localhost:7687", auth=("neo4j", "12345678"))
+driver = GraphDatabase.driver("bolt://localhost:7687", auth=("neo4j", "Cs22032025"))
 
 
 def split_multi_values(value):
@@ -19,10 +19,7 @@ with driver.session() as session:
     session.run("MATCH (n) DETACH DELETE n")
     for _, row in df.iterrows():
         art_id = str(row["id"])
-        Title = row.get("Title", '')
-        Artist = row.get("Artist", '')
 
-        # 创建 Artifact 节点（用 id 作为唯一键）
         # 创建 Artifact 节点（用 id 作为唯一键）
         session.run("""
             MERGE (a:Artifact {id: $id})
@@ -33,66 +30,36 @@ with driver.session() as session:
                 a.Dimensions = $Dimensions,
                 a.Materials = $Materials,
                 a.Description = $Description,
-                a.Inscribed = $Inscribed
-        """, id=art_id, Title=row.get("Title", ""),
+                a.Inscribed = $Inscribed,
+                a.Museum=$Museum,
+                a.PlaceOri=$PlaceOri,
+                a.Classifications=$Classifications,
+                a.Medium=$Medium
+        """, id=art_id,
+                    Title=row.get("Title", ""),
                     Artist=row.get("Artist", ""),
                     Dynasty=row.get("Dynasty", ""),
                     CreditLine=row.get("CreditLine", ""),
                     Dimensions=row.get("Dimensions", ""),
                     Materials=row.get("Materials", ""),
                     Description=row.get("Description", ""),
-                    Inscribed=row.get("Inscribed", ""))
+                    Inscribed=row.get("Inscribed", ""),
+                    Museum=row.get("Museum", ""),
+                    PlaceOri=row.get("PlaceOri", ""),
+                    Classifications=row.get("Classifications", ""),
+                    Medium=row.get("Medium", ""),
+                    )
 
-        # 处理 Museum
-        museum = row.get("Museum")
-        if pd.notna(museum):
+        artist = row.get("OnlyArtist")
+        if pd.notna(artist):
             session.run("""
-                MERGE (m:Museum {name: $museum})
-                WITH m
-                MATCH (a:Artifact {id: $id})
-                MERGE (a)-[:KEPT_BY]->(m)
-            """, id=art_id, museum=museum.strip())
-
-        # 处理 PlaceOri
-        place = row.get("PlaceOri")
-        if pd.notna(place):
-            session.run("""
-                MERGE (p:PlaceOri {name: $place})
-                WITH p
-                MATCH (a:Artifact {id: $id})
-                MERGE (a)-[:ORIGINATED_FROM]->(p)
-            """, id=art_id, place=place.strip())
-
-        # 处理 Classifications
-        classifications = row.get("Classifications")
-        if pd.notna(classifications):
-            session.run("""
-                        MERGE (c:Classification {name: $cls})
-                        WITH c
-                        MATCH (a:Artifact {id: $id})
-                        MERGE (a)-[:HAS_CLASSIFICATION]->(c)
-                    """, id=art_id, cls=classifications.strip())
-
-        for period in split_multi_values(row.get('periods')):
-            session.run("""
-                        MERGE (p:Period {name: $period})
-                        MERGE (a:Artifact {id: $id})
-                        MERGE (a)-[:HAS_PERIOD]->(p)
-                    """, id=art_id, period=period)
-
-        mediums = row.get("Medium")
-        if pd.notna(mediums):
-            for med in split_multi_values(mediums):
-                if med:
-                    session.run("""
-                        MERGE (m:Medium {name: $medium})
+                        MERGE (m:Artist {name: $artist})
                         WITH m
                         MATCH (a:Artifact {id: $id})
-                        MERGE (a)-[:USES_MEDIUM]->(m)
-                    """, id=art_id, medium=med)
+                        MERGE (a)-[:创作者是]->(m)
+                    """, id=art_id, artist=artist.strip())
 
-        # 处理 Dynasty
-        dynasty = row.get("Dynasty")
+        dynasty = row.get("periods")
         if pd.notna(dynasty):
             for dynastyonly in split_multi_values(dynasty):
                 if dynastyonly:
@@ -100,8 +67,17 @@ with driver.session() as session:
                         MERGE (d:Dynasty {name: $dynasty})
                         WITH d
                         MATCH (a:Artifact {id: $id})
-                        MERGE (a)-[:BELONGS_TO_DYNASTY]->(d)
+                        MERGE (a)-[:创造年代是]->(d)
                     """, id=art_id, dynasty=dynastyonly.strip())
+
+        dimensions = row.get("Dimensions")
+        if pd.notna(dimensions):
+            session.run("""
+                        MERGE (m:Dimension {name: $dimensions})
+                        WITH m
+                        MATCH (a:Artifact {id: $id})
+                        MERGE (a)-[:尺寸是]->(m)
+                    """, id=art_id, dimensions=dimensions.strip())
 
         materials = row.get("Materials")
         if pd.notna(materials):
@@ -111,7 +87,45 @@ with driver.session() as session:
                             MERGE (p:Material {name: $material})
                             WITH p
                             MATCH (a:Artifact {id: $id})
-                            MERGE (a)-[:原料是]->(p)
+                            MERGE (a)-[:材质是]->(p)
                         """, id=art_id, material=material)
+
+        museum = row.get("Museum")
+        if pd.notna(museum):
+            session.run("""
+                        MERGE (m:Museum {name: $museum})
+                        WITH m
+                        MATCH (a:Artifact {id: $id})
+                        MERGE (a)-[:现藏博物馆是]->(m)
+                    """, id=art_id, museum=museum.strip())
+
+        place = row.get("PlaceOri")
+        if pd.notna(place):
+            session.run("""
+                MERGE (p:PlaceOri {name: $place})
+                WITH p
+                MATCH (a:Artifact {id: $id})
+                MERGE (a)-[:来源地是]->(p)
+            """, id=art_id, place=place.strip())
+
+        classifications = row.get("Classifications")
+        if pd.notna(classifications):
+            session.run("""
+                        MERGE (c:Classification {name: $cls})
+                        WITH c
+                        MATCH (a:Artifact {id: $id})
+                        MERGE (a)-[:类型是]->(c)
+                    """, id=art_id, cls=classifications.strip())
+
+        mediums = row.get("Medium")
+        if pd.notna(mediums):
+            for med in split_multi_values(mediums):
+                if med:
+                    session.run("""
+                               MERGE (m:Medium {name: $medium})
+                               WITH m
+                               MATCH (a:Artifact {id: $id})
+                               MERGE (a)-[:媒介是]->(m)
+                           """, id=art_id, medium=med)
 
         print(row.get('id'))
